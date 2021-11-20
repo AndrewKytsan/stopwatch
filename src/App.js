@@ -1,30 +1,72 @@
-import { useEffect, useState } from "react";
+import { Observable, Subject } from "rxjs";
+import { buffer, debounceTime, filter, takeUntil } from "rxjs/operators";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import setTimeFormat from "./setTimeFormat";
+
 function App() {
   const [time, setTime] = useState(0);
-  const [timerOn, setTimerOn] = useState(false);
+  const [timer, setTimer] = useState("stop");
+
+  const click$ = useMemo(() => new Subject(), []);
+  const stopTimer$ = useMemo(() => new Subject(), []);
+
+  const start = () => {
+    setTimer("start");
+  };
+  const stop = () => {
+    setTime(0);
+    setTimer("stop");
+  };
+  const reset = () => {
+    setTime(0);
+  };
+
+  const wait = () => {
+    click$.next();
+    setTimer("wait");
+    click$.next();
+  };
+
   useEffect(() => {
-    let interval = null;
-    if (timerOn) {
-      interval = setInterval(() => {
-        setTime((prevTime) => prevTime + 1);
+    const doubleClick$ = click$.pipe(
+      buffer(click$.pipe(debounceTime(300))),
+      filter((arr) => arr.length >= 2)
+    );
+
+    const timer$ = new Observable((observer) => {
+      let count = 0;
+      const interval = setInterval(() => {
+        observer.next((count += 1));
       }, 1000);
-    } else {
-      clearInterval(interval);
-    }
-    return () => clearInterval(interval);
-  }, [timerOn]);
+      return () => clearInterval(interval);
+    });
+
+    const subscription$ = timer$
+      .pipe(takeUntil(doubleClick$))
+      .pipe(takeUntil(stopTimer$))
+      .subscribe({
+        next() {
+          if (timer === "start") {
+            setTime((prev) => prev + 1);
+          }
+        },
+      });
+    return () => {
+      subscription$.unsubscribe();
+    };
+  });
+
   return (
     <div className="timerContainer">
       <div>
         <span className="timeDigits">{setTimeFormat(time)}</span>
       </div>
       <div>
-        <button onClick={() => setTimerOn(true)}>Start</button>
-        <button onClick={() => setTime(0) & setTimerOn(false)}>Stop</button>
-        <button onClick={() => setTimerOn(true)}>Resume</button>
-        <button onClick={() => setTimerOn(false)}>Wait</button>
+        <button onClick={start}>Start</button>
+        <button onClick={stop}>Stop</button>
+        <button onClick={reset}>Reset</button>
+        <button onClick={wait}>Wait</button>
       </div>
     </div>
   );
