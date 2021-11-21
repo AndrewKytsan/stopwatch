@@ -1,6 +1,6 @@
 import { Observable, Subject } from "rxjs";
 import { buffer, debounceTime, filter, takeUntil } from "rxjs/operators";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import setTimeFormat from "./setTimeFormat";
 
@@ -8,8 +8,7 @@ function App() {
   const [time, setTime] = useState(0);
   const [timer, setTimer] = useState("stop");
 
-  const click$ = useMemo(() => new Subject(), []);
-  const stopTimer$ = useMemo(() => new Subject(), []);
+  const click$ = new Subject();
 
   const start = () => {
     setTimer("start");
@@ -29,11 +28,6 @@ function App() {
   };
 
   useEffect(() => {
-    const doubleClick$ = click$.pipe(
-      buffer(click$.pipe(debounceTime(300))),
-      filter((arr) => arr.length >= 2)
-    );
-
     const timer$ = new Observable((observer) => {
       let count = 0;
       const interval = setInterval(() => {
@@ -41,20 +35,18 @@ function App() {
       }, 1000);
       return () => clearInterval(interval);
     });
-
-    const subscription$ = timer$
-      .pipe(takeUntil(doubleClick$))
-      .pipe(takeUntil(stopTimer$))
-      .subscribe({
-        next() {
-          if (timer === "start") {
-            setTime((prev) => prev + 1);
-          }
-        },
-      });
-    return () => {
-      subscription$.unsubscribe();
-    };
+const doubleClick$ = click$.pipe(
+  buffer(click$.pipe(debounceTime(300))),
+  filter((arr) => arr.length >= 2)
+);
+    const subscription$ = timer$.pipe(takeUntil(doubleClick$)).subscribe({
+      next() {
+        if (timer === "start") {
+          setTime((prev) => prev + 1);
+        }
+      },
+    });
+    return () => subscription$.unsubscribe();
   });
 
   return (
